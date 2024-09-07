@@ -53,6 +53,14 @@ func TablePrefix() []byte {
 	return tablePrefix
 }
 
+func RecordPrefixSep() []byte {
+	return recordPrefixSep
+}
+
+func IndexPrefixSep() []byte {
+	return indexPrefixSep
+}
+
 // appendTableRecordPrefix appends table record prefix  "t[tableID]_r".
 func appendTableRecordPrefix(buf []byte, tableID int64) []byte {
 	buf = append(buf, tablePrefix...)
@@ -98,7 +106,34 @@ func DecodeRecordKey(key kv.Key) (tableID int64, handle int64, err error) {
 	 *   5. understanding the coding rules is a prerequisite for implementing this function,
 	 *      you can learn it in the projection 1-2 course documentation.
 	 */
-	return
+	k := key
+	if kLen := len(k); kLen < RecordRowKeyLen {
+		return 0, 0, errors.Errorf("key not valid with length %v < %v", kLen, RecordRowKeyLen)
+	}
+	keyTablePrefix := k[:tablePrefixLength]
+	for i := 0; i < tablePrefixLength; i++ {
+		if keyTablePrefix[i] != TablePrefix()[i] {
+			return 0, 0, errors.Errorf("table key not valid with key: %+v", key)
+		}
+	}
+	keyTableId := k[tablePrefixLength:]
+	reminder, tableId, err := codec.DecodeInt(keyTableId)
+	if err != nil {
+		return 0, 0, err
+	}
+	//keyHandlePrefix := reminder[:recordPrefixSepLength]
+	//for i := 0; i < recordPrefixSepLength; i++ {
+	//	if keyHandlePrefix[i] != RecordPrefixSep()[i] {
+	//		return 0, 0, errors.Errorf("record prefix key not valid with key: %+v", keyHandlePrefix)
+	//	}
+	//}
+	keyHandle := reminder[recordPrefixSepLength:]
+	reminder, handle, err = codec.DecodeInt(keyHandle)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return tableId, handle, nil
 }
 
 // appendTableIndexPrefix appends table index prefix  "t[tableID]_i".
@@ -148,7 +183,16 @@ func DecodeIndexKeyPrefix(key kv.Key) (tableID int64, indexID int64, indexValues
 	 *   5. understanding the coding rules is a prerequisite for implementing this function,
 	 *      you can learn it in the projection 1-2 course documentation.
 	 */
-	return tableID, indexID, indexValues, nil
+	k := key
+	tableID, indexID, err = DecodeRecordKey(k)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	if kLen := len(k); kLen < RecordRowKeyLen+recordPrefixSepLength {
+		return 0, 0, nil, errors.Errorf("record prefix index key not valid with key length: %+v", kLen)
+	}
+
+	return tableID, indexID, k[RecordRowKeyLen:], nil
 }
 
 // DecodeIndexKey decodes the key and gets the tableID, indexID, indexValues.
