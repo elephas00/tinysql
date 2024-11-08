@@ -811,6 +811,7 @@ import (
 	InsertValues			"Rest part of INSERT/REPLACE INTO statement"
 	JoinTable 			"join table"
 	JoinType			"join type"
+	JoinSpecification "join specification"
 	LocationLabelList		"location label name list"
 	LikeEscapeOpt 			"like escape option"
 	LikeTableWithOrWithoutParen	"LIKE table_name or ( LIKE table_name )"
@@ -3819,6 +3820,17 @@ JoinTable:
          * }
          *
 	 */
+|   TableRef JoinType "JOIN" TableRef JoinSpecification
+	{
+		$$ = &ast.Join{Left: $1.(ast.ResultSetNode), Right: $4.(ast.ResultSetNode), Tp: $2.(ast.JoinType), On: $5.(*ast.OnCondition) }
+	}
+
+JoinSpecification:
+	"ON" Expression
+	{
+		$$ = &ast.OnCondition{Expr: $2}
+	}
+
 
 JoinType:
 	"LEFT"
